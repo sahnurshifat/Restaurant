@@ -8,7 +8,7 @@ const invoiceContainer = document.getElementById('invoice-container');
 
 // ── Config ────────────────────────────────────────────────────
 
-const TAX_RATE = 0.05;   // 5 % VAT — adjust as needed
+const TAX_RATE = 0;   // 5 % VAT — adjust as needed
 
 // ── Fetch ─────────────────────────────────────────────────────
 
@@ -26,7 +26,8 @@ export async function loadInvoice() {
     .from('orders')
     .select(`
       id,
-      table_id,
+      daily_token,
+      table_id
       status,
       payment_method,
       total,
@@ -79,7 +80,7 @@ function calculateTotals(order) {
 function renderInvoice(order) {
   if (!invoiceContainer) return;
 
-  const token     = order.id.slice(-4).toUpperCase();
+  const token = order.daily_token ?? order.id.slice(-4).toUpperCase();
   const dateStr   = new Date(order.created_at).toLocaleString('en-BD', {
     dateStyle: 'medium', timeStyle: 'short',
   });
@@ -185,27 +186,6 @@ function renderInvoice(order) {
       overflow:hidden;
       margin-top:1rem;
     ">
-      <!-- Subtotal row -->
-      <div style="
-        display:flex; justify-content:space-between;
-        padding:.65rem 1rem;
-        border-bottom:1px solid var(--c-border);
-        font-size:.9rem;
-      ">
-        <span style="color:var(--c-muted);">Subtotal</span>
-        <span>৳${subtotal.toFixed(2)}</span>
-      </div>
-
-      <!-- Tax row -->
-      <div style="
-        display:flex; justify-content:space-between;
-        padding:.65rem 1rem;
-        border-bottom:1px solid var(--c-border);
-        font-size:.9rem;
-      ">
-        <span style="color:var(--c-muted);">VAT (${(TAX_RATE * 100).toFixed(0)}%)</span>
-        <span>৳${taxAmount.toFixed(2)}</span>
-      </div>
 
       <!-- Grand total row -->
       <div style="
