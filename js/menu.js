@@ -147,7 +147,7 @@ function renderMenu(items) {
     // Phase 13: larger price, cleaner layout, category tag
     card.innerHTML = `
       <img
-        src="${item.image_url || 'assets/placeholder.png'}"
+        src="${item.image_url || 'assets/placeholder.jpg'}"
         alt="${item.name}"
         loading="lazy"
         onerror="this.src='assets/placeholder.png'"
