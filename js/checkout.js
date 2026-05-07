@@ -316,43 +316,8 @@ function validateCart(cart) {
   return null;
 }
 
-/**
- * Async validation: confirms every menu_item_id in the cart
- * still exists and is available in the DB.
- * Returns an error string or null.
- * @param {Array} cart
- * @returns {Promise<string|null>}
- */
-async function verifyItemsExist(cart) {
-  const ids = cart.map(i => i.id);
 
-  const { data, error } = await supabase
-    .from('menu_items')
-    .select('id, name, is_available')
-    .in('id', ids);
 
-  if (error) {
-    console.error('[checkout.js] Item verification error:', error.message);
-    return 'Could not verify menu items. Please try again.';
-  }
-
-  // Build a lookup map of what the DB knows
-  const dbMap = Object.fromEntries(data.map(r => [r.id, r]));
-
-  for (const item of cart) {
-    const dbItem = dbMap[item.id];
-    if (!dbItem) {
-      return `"${item.name}" is no longer available. Please remove it from your cart.`;
-    }
-    if (!dbItem.is_available) {
-      return `"${dbItem.name}" has been removed from the menu. Please update your cart.`;
-    }
-  }
-
-  return null;
-}
-
-// ── Confirm handler ───────────────────────────────────────────
 
 /**
  * Validates payment selection, inserts the order + order_items
@@ -403,21 +368,11 @@ async function handleConfirm() {
   isSubmitting = true;
   const btn = document.getElementById('checkout-confirm-btn');
   if (btn) {
-    btn.textContent = 'Verifying items…';
+    btn.textContent = 'Placing order…';
     btn.disabled    = true;
   }
 
-  // ── Guard 6: verify items still exist in DB ───────────
-  const existenceError = await verifyItemsExist(cart);
-  if (existenceError) {
-    showError(existenceError);
-    isSubmitting = false;
-    if (btn) { btn.textContent = 'Confirm Order'; btn.disabled = false; }
-    return;
-  }
-
-  if (btn) btn.textContent = 'Placing order…';
-
+  
   // ── 1. Insert order header ────────────────────────────────
   const { data: order, error: orderErr } = await supabase
     .from('orders')
