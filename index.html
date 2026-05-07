@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Menu — QR Restaurant</title>
-  <link rel="stylesheet" href="../css/styles.css" />
+  <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
 
@@ -55,30 +55,25 @@
   </div><!-- /container -->
 
   <!-- ── Scripts ────────────────────────────────────── -->
-  <script type="module">
-    import { initSession }              from '../js/session.js';
-    import { loadMenu, loadCategories } from '../js/menu.js';
-    import { renderCartUI, getCartCount } from '../js/cart.js';
+<script type="module">
+    import { initSession }               from './js/session.js';
+    import { loadMenu, loadCategories }  from './js/menu.js';
+    import { renderCartUI, getCartCount } from './js/cart.js';
 
-    // checkout.js self-wires #checkout-btn at import time — just import it
-    import '../js/checkout.js';
+    import './js/checkout.js';
 
-    // Init session from ?table= param
     initSession();
 
-    // Load menu & categories
     await loadMenu();
     await loadCategories();
 
-    // Refresh cart header count + sidebar on every cart change
     function refreshCartUI() {
-      renderCartUI('cart-items');                             // renders items + total internally
+      renderCartUI('cart-items');
       document.getElementById('cart-count').textContent = getCartCount();
     }
     window.addEventListener('cartUpdated', refreshCartUI);
     refreshCartUI();
 
-    // Mobile: toggle cart sidebar visibility
     document.getElementById('cart-toggle-btn')?.addEventListener('click', () => {
       const sidebar = document.getElementById('cart-sidebar');
       sidebar.style.display = sidebar.style.display === 'none' ? 'block' : 'none';

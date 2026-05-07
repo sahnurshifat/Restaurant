@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin Login — QR Restaurant</title>
-  <link rel="stylesheet" href="../css/styles.css" />
+  <link rel="stylesheet" href="css/styles.css" />
   <style>
     /* ── Login page layout ──────────────────────────────── */
     .login-wrapper {
@@ -143,10 +143,10 @@
   <!-- ── Scripts ────────────────────────────────────── -->
   <script type="module">
     // adminAuth.js auto-wires the form submit handler
-    import '../js/adminAuth.js';
+    import './js/adminAuth.js';
 
     // Redirect already-authenticated admins straight to dashboard
-    import { supabase } from '../js/supabaseClient.js';
+    import { supabase } from './js/supabaseClient.js';
     const { data: { session } } = await supabase.auth.getSession();
     if (session) window.location.replace('admin.html');
 

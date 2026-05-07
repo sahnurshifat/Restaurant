@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin Dashboard — QR Restaurant</title>
-  <link rel="stylesheet" href="../css/styles.css" />
+  <link rel="stylesheet" href="css/styles.css" />
   <!-- Hide body immediately — shown only after auth check passes -->
   <style> body { visibility: hidden; } </style>
 </head>
@@ -89,7 +89,7 @@
 
   <!-- ── Scripts ────────────────────────────────────── -->
   <script type="module">
-    import { requireAuth, adminLogout } from '../js/adminAuth.js';
+    import { requireAuth, adminLogout } from './js/adminAuth.js';
 
     // Auth check FIRST — page stays invisible until confirmed.
     // requireAuth() redirects to login.html if session missing.
@@ -103,7 +103,7 @@
     document.body.style.visibility = 'visible';
 
     // Execute adminOrders.js — it self-initialises (no default export needed)
-    await import('../js/adminOrders.js');
+    await import('./js/adminOrders.js');
     let menuLoaded = false;
 
     // Tab switching
@@ -117,7 +117,7 @@
         document.getElementById('tab-menu').style.display   = tab === 'menu'   ? '' : 'none';
 
         if (tab === 'menu' && !menuLoaded) {
-          await import('../js/adminMenu.js');
+          await import('./js/adminMenu.js');
           menuLoaded = true;
         }
       });
