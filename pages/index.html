@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Menu — QR Restaurant</title>
+  <link rel="stylesheet" href="../css/styles.css" />
+</head>
+<body>
+
+  <!-- ── Header ─────────────────────────────────────── -->
+  <header class="site-header">
+    <span class="logo">🍽 Bistro</span>
+    <button class="btn btn--ghost" id="cart-toggle-btn">
+      🛒 Cart (<span id="cart-count">0</span>)
+    </button>
+  </header>
+
+  <!-- ── Main Layout ────────────────────────────────── -->
+  <div class="container" style="display:flex; gap:1.5rem; padding-top:1.5rem;">
+
+    <!-- Menu Column -->
+    <main style="flex:1; min-width:0;">
+      <h1>Our Menu</h1>
+
+      <div class="mt-2" style="display:flex; gap:.75rem; align-items:center; flex-wrap:wrap;">
+        <label for="category-filter" style="color:var(--c-muted); font-size:.85rem;">Filter:</label>
+        <select id="category-filter" style="
+          background:var(--c-surface); border:1px solid var(--c-border);
+          color:var(--c-text); padding:.4rem .8rem; border-radius:6px;
+          font-family:var(--ff-body);
+        ">
+          <option value="">All Categories</option>
+        </select>
+      </div>
+
+      <div id="menu-container">
+        <p class="empty-state">Loading menu…</p>
+      </div>
+    </main>
+
+    <!-- Cart Sidebar -->
+    <aside id="cart-sidebar" style="
+      width:300px; flex-shrink:0;
+      background:var(--c-surface); border:1px solid var(--c-border);
+      border-radius:var(--radius-md); padding:1.25rem;
+      height:fit-content; position:sticky; top:80px;
+    ">
+      <h2 style="font-size:1.1rem; margin-bottom:1rem;">Your Order</h2>
+      <div id="cart-items"></div>
+      <p id="cart-total" class="mt-2" style="display:flex; justify-content:space-between; align-items:center;"></p>
+      <button class="btn mt-2" style="width:100%;" id="checkout-btn">Place Order</button>
+    </aside>
+
+  </div><!-- /container -->
+
+  <!-- ── Scripts ────────────────────────────────────── -->
+  <script type="module">
+    import { initSession }              from '../js/session.js';
+    import { loadMenu, loadCategories } from '../js/menu.js';
+    import { renderCartUI, getCartCount } from '../js/cart.js';
+
+    // checkout.js self-wires #checkout-btn at import time — just import it
+    import '../js/checkout.js';
+
+    // Init session from ?table= param
+    initSession();
+
+    // Load menu & categories
+    await loadMenu();
+    await loadCategories();
+
+    // Refresh cart header count + sidebar on every cart change
+    function refreshCartUI() {
+      renderCartUI('cart-items');                             // renders items + total internally
+      document.getElementById('cart-count').textContent = getCartCount();
+    }
+    window.addEventListener('cartUpdated', refreshCartUI);
+    refreshCartUI();
+
+    // Mobile: toggle cart sidebar visibility
+    document.getElementById('cart-toggle-btn')?.addEventListener('click', () => {
+      const sidebar = document.getElementById('cart-sidebar');
+      sidebar.style.display = sidebar.style.display === 'none' ? 'block' : 'none';
+    });
+  </script>
+
+</body>
+</html>

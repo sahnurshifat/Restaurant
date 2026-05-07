@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Login — QR Restaurant</title>
+  <link rel="stylesheet" href="../css/styles.css" />
+  <style>
+    /* ── Login page layout ──────────────────────────────── */
+    .login-wrapper {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+
+    .login-card {
+      background: var(--c-surface);
+      border: 1px solid var(--c-border);
+      border-radius: var(--radius-lg);
+      padding: 2.5rem 2rem;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: var(--shadow-card);
+    }
+
+    .login-card h1 {
+      text-align: center;
+      margin-bottom: .25rem;
+    }
+
+    .login-card .subtitle {
+      text-align: center;
+      color: var(--c-muted);
+      font-size: .9rem;
+      margin-bottom: 1.75rem;
+    }
+
+    /* Shake animation — triggered by adminAuth.js on bad creds */
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%       { transform: translateX(-8px); }
+      40%       { transform: translateX( 8px); }
+      60%       { transform: translateX(-5px); }
+      80%       { transform: translateX( 5px); }
+    }
+    .login-card.shake { animation: shake .45s ease; }
+
+    /* Password wrapper for the show/hide toggle */
+    .password-wrapper {
+      position: relative;
+    }
+    .password-wrapper input {
+      width: 100%;
+      padding-right: 2.8rem;
+    }
+    .toggle-pw {
+      position: absolute;
+      right: .75rem;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: var(--c-muted);
+      cursor: pointer;
+      font-size: .9rem;
+      padding: .2rem;
+      line-height: 1;
+    }
+    .toggle-pw:hover { color: var(--c-text); }
+
+    /* Divider */
+    .login-divider {
+      border: none;
+      border-top: 1px solid var(--c-border);
+      margin: 1.5rem 0;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="login-wrapper">
+    <div class="login-card">
+
+      <!-- Branding -->
+      <h1>🍽 Bistro</h1>
+      <p class="subtitle">Admin Portal</p>
+
+      <!-- Login form -->
+      <form id="login-form" novalidate>
+
+        <!-- Email -->
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input
+            id="email"
+            name="email"
+            type="email"
+            autocomplete="email"
+            required
+            placeholder="admin@restaurant.com"
+          />
+        </div>
+
+        <!-- Password + show/hide toggle -->
+        <div class="form-group">
+          <label for="password">Password</label>
+          <div class="password-wrapper">
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              required
+              placeholder="••••••••"
+            />
+            <button type="button" class="toggle-pw" id="toggle-pw" aria-label="Toggle password visibility">
+              👁
+            </button>
+          </div>
+        </div>
+
+        <!-- Inline error (populated by adminAuth.js) -->
+        <p id="login-error" class="error" style="min-height:1.2rem; margin-bottom:.5rem;"></p>
+
+        <!-- Submit -->
+        <button class="btn mt-1" type="submit" style="width:100%; padding:.75rem;">
+          Sign In
+        </button>
+
+      </form>
+
+      <hr class="login-divider" />
+
+      <p style="text-align:center; font-size:.8rem; color:var(--c-muted);">
+        Staff access only. Contact your manager for credentials.
+      </p>
+
+    </div>
+  </div>
+
+  <!-- ── Scripts ────────────────────────────────────── -->
+  <script type="module">
+    // adminAuth.js auto-wires the form submit handler
+    import '../js/adminAuth.js';
+
+    // Redirect already-authenticated admins straight to dashboard
+    import { supabase } from '../js/supabaseClient.js';
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) window.location.replace('admin.html');
+
+    // Password show / hide toggle
+    const pwInput  = document.getElementById('password');
+    const toggleBtn = document.getElementById('toggle-pw');
+    toggleBtn.addEventListener('click', () => {
+      const isText = pwInput.type === 'text';
+      pwInput.type          = isText ? 'password' : 'text';
+      toggleBtn.textContent = isText ? '👁' : '🙈';
+      toggleBtn.setAttribute('aria-label', isText ? 'Show password' : 'Hide password');
+    });
+  </script>
+
+</body>
+</html>
