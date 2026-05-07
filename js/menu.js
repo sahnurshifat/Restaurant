@@ -147,10 +147,10 @@ function renderMenu(items) {
     // Phase 13: larger price, cleaner layout, category tag
     card.innerHTML = `
       <img
-        src="${item.image_url || '../assets/placeholder.png'}"
+        src="${item.image_url || 'assets/placeholder.png'}"
         alt="${item.name}"
         loading="lazy"
-        onerror="this.src='../assets/placeholder.png'"
+        onerror="this.src='assets/placeholder.png'"
         style="width:100%; height:160px; object-fit:cover;"
       />
       <div class="menu-card__body" style="flex:1; padding:.85rem 1rem .5rem;">
