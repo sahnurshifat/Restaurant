@@ -27,7 +27,7 @@ export async function loadInvoice() {
     .select(`
       id,
       daily_token,
-      table_id
+      table_id,
       status,
       payment_method,
       total,
