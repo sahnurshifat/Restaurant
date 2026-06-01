@@ -18,7 +18,7 @@ qr-restaurant/
 │   ├── cart.js              # localStorage-backed cart state & UI
 │   ├── checkout.js          # Place order → writes to Supabase
 │   ├── invoice.js           # Fetch & display order invoice
-│   ├── adminAuth.js         # Supabase Auth login / logout / route guard
+│   ├── adminAuth.js         
 │   ├── adminOrders.js       # Real-time order list + status updates
 │   └── adminMenu.js         # Full CRUD for menu items
 ├── pages/
