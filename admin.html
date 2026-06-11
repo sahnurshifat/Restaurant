@@ -20,12 +20,22 @@
 
     <!-- ── Tab Bar ──────────────────────────────────── -->
     <nav class="tab-bar">
-      <button class="active" data-tab="orders">Live Orders</button>
+      <button class="active" data-tab="dashboard">Dashboard</button>
+      <button data-tab="orders">Live Orders</button>
       <button data-tab="menu">Manage Menu</button>
+      <button data-tab="transactions">Transactions</button>
     </nav>
 
+    <!-- ── Dashboard Tab ────────────────────────────── -->
+    <section id="tab-dashboard">
+      <h2 style="margin-bottom:1rem;">Sales Dashboard</h2>
+      <div id="dashboard-container">
+        <p class="empty-state">Loading stats...</p>
+      </div>
+    </section>
+
     <!-- ── Orders Tab ───────────────────────────────── -->
-    <section id="tab-orders">
+    <section id="tab-orders" style="display:none;">
       <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.5rem; margin-bottom:1rem;">
         <h2 style="margin:0;">Live Orders</h2>
         <span id="orders-refresh-stamp" style="font-size:.78rem; color:var(--c-muted);">Loading…</span>
@@ -85,6 +95,19 @@
       </div>
     </section>
 
+    <!-- ── Transactions Tab ─────────────────────────── -->
+    <section id="tab-transactions" style="display:none;">
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.75rem; margin-bottom:1.25rem;">
+        <h2 style="margin:0;">Transaction History</h2>
+        <button class="btn" id="export-pdf-btn" style="padding:.5rem 1.1rem;">
+          Export as PDF
+        </button>
+      </div>
+      <div id="transactions-container">
+        <p class="empty-state">Loading...</p>
+      </div>
+    </section>
+
   </div><!-- /container -->
 
   <!-- ── Scripts ────────────────────────────────────── -->
@@ -92,19 +115,18 @@
     import { requireAuth, adminLogout } from './js/adminAuth.js';
 
     // Auth check FIRST — page stays invisible until confirmed.
-    // requireAuth() redirects to login.html if session missing.
     const session = await requireAuth();
-    if (!session) {
-      // requireAuth already redirected; stop execution.
-      throw new Error('Unauthenticated');
-    }
+    if (!session) throw new Error('Unauthenticated');
 
     // Auth confirmed — reveal the page
     document.body.style.visibility = 'visible';
 
-    // Execute adminOrders.js — it self-initialises (no default export needed)
-    await import('./js/adminOrders.js');
-    let menuLoaded = false;
+    // Load dashboard immediately (default tab)
+    await import('./js/adminDashboard.js');
+
+    let ordersLoaded       = false;
+    let menuLoaded         = false;
+    let transactionsLoaded = false;
 
     // Tab switching
     document.querySelectorAll('.tab-bar button').forEach(btn => {
@@ -113,12 +135,22 @@
         btn.classList.add('active');
 
         const tab = btn.dataset.tab;
-        document.getElementById('tab-orders').style.display = tab === 'orders' ? '' : 'none';
-        document.getElementById('tab-menu').style.display   = tab === 'menu'   ? '' : 'none';
+        document.getElementById('tab-dashboard').style.display    = tab === 'dashboard'    ? '' : 'none';
+        document.getElementById('tab-orders').style.display       = tab === 'orders'       ? '' : 'none';
+        document.getElementById('tab-menu').style.display         = tab === 'menu'         ? '' : 'none';
+        document.getElementById('tab-transactions').style.display = tab === 'transactions' ? '' : 'none';
 
+        if (tab === 'orders' && !ordersLoaded) {
+          await import('./js/adminOrders.js');
+          ordersLoaded = true;
+        }
         if (tab === 'menu' && !menuLoaded) {
           await import('./js/adminMenu.js');
           menuLoaded = true;
+        }
+        if (tab === 'transactions' && !transactionsLoaded) {
+          await import('./js/adminTransactions.js');
+          transactionsLoaded = true;
         }
       });
     });
