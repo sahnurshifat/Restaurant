@@ -124,7 +124,7 @@ const STATUS_CFG = {
   pending:   { label: '⏳ Pending',   bg: '#4a3a00', color: '#ffd060', border: '#8a6a00' },
   preparing: { label: '🔥 Preparing', bg: '#003a5a', color: '#60c0ff', border: '#006a9a' },
   served:    { label: '✅ Served',    bg: '#003a20', color: '#60e090', border: '#006a40' },
-  paid:      { label: '💚 Paid',      bg: '#003a20', color: '#a0ffc0', border: '#00aa60' },
+  paid:      { label: '✅ Paid',      bg: '#003a20', color: '#a0ffc0', border: '#00aa60' },
   cancelled: { label: '✕ Cancelled', bg: '#3a0000', color: '#ff9090', border: '#8a0000' },
 };
 
