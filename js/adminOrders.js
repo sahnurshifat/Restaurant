@@ -1,10 +1,8 @@
 // ============================================================
 // adminOrders.js — Today's orders: fetch, render, status +
-//                  "Mark as Paid" with Supabase DB update
+//                  "Mark as Paid" & "Print Receipt"
 //
 // ⚡ Uses polling instead of Realtime (free tier compatible).
-//    Polls every 8s normally, every 3s when a status update
-//    was just made (so the change feels instant to the admin).
 // ============================================================
 
 import { supabase }     from './supabaseClient.js';
@@ -18,7 +16,7 @@ await requireAuth();
 
 const POLL_NORMAL_MS = 8000;   // 8s — background idle polling
 const POLL_FAST_MS   = 3000;   // 3s — right after a status change
-let   _pollTimer     = null;
+let   _pollTimer       = null;
 let   _lastOrderHash = '';     // lightweight change detection
 
 // ── Date helpers ──────────────────────────────────────────────
@@ -35,9 +33,35 @@ function todayRange() {
 export async function initOrders() {
   await fetchOrders();
   schedulePoll(POLL_NORMAL_MS);
-
-  // Show last-refreshed time in header
   updateRefreshStamp();
+
+  // Bind a single centralized click listener for all button actions (Event Delegation)
+  if (ordersContainer) {
+    ordersContainer.addEventListener('click', async (e) => {
+      const btnStatus = e.target.closest('.btn--status');
+      const btnPaid   = e.target.closest('.btn--paid');
+      const btnPrint  = e.target.closest('.btn--print');
+
+      if (btnStatus) {
+        updateOrderStatus(btnStatus.dataset.id, btnStatus.dataset.status);
+      }
+      if (btnPaid) {
+        markAsPaid(btnPaid.dataset.id, btnPaid);
+      }
+      if (btnPrint) {
+        const orderId = btnPrint.dataset.id;
+        // Fetch full record matching this ID from our current state cache or DOM if needed,
+        // but since we need item names, we pass the order object by reconstructing it or re-fetching.
+        // For simplicity, we find the global raw data or read it from a data attribute. 
+        // Best approach: target the DOM element data or pass down via custom event.
+        // Let's grab the data we injected right out of the window cache or a quick helper.
+        const orderData = window._currentOrdersCache?.find(o => o.id === orderId);
+        if (orderData) {
+          printOrderReceipt(orderData);
+        }
+      }
+    });
+  }
 }
 
 /** Schedules the next poll, cancelling any existing timer. */
@@ -45,11 +69,11 @@ function schedulePoll(intervalMs) {
   clearTimeout(_pollTimer);
   _pollTimer = setTimeout(async () => {
     await fetchOrders();
-    schedulePoll(POLL_NORMAL_MS);   // always return to normal interval after each poll
+    schedulePoll(POLL_NORMAL_MS);
   }, intervalMs);
 }
 
-/** Triggers a fast follow-up poll after an action (status change, paid). */
+/** Triggers a fast follow-up poll after an action. */
 function pollSoon() {
   schedulePoll(POLL_FAST_MS);
 }
@@ -82,17 +106,17 @@ async function fetchOrders() {
   if (error) {
     console.error('[adminOrders.js] Fetch error:', error.message);
     if (ordersContainer && !ordersContainer.querySelector('[data-id]')) {
-      // Only show error if there's nothing rendered yet
       ordersContainer.innerHTML = '<p class="empty-state error">Failed to load orders. Retrying…</p>';
     }
     return;
   }
 
-  // ── Change detection: only re-render if data actually changed ─
-  // Avoids flickering/losing scroll position on every 8s poll
+  // Save to window cache so print function can access full object fields easily
+  window._currentOrdersCache = data ?? [];
+
   const newHash = hashOrders(data ?? []);
   if (newHash === _lastOrderHash) {
-    updateRefreshStamp();   // still update the timestamp
+    updateRefreshStamp();
     return;
   }
   _lastOrderHash = newHash;
@@ -101,22 +125,16 @@ async function fetchOrders() {
   updateRefreshStamp();
 }
 
-/**
- * Produces a lightweight string fingerprint of orders data.
- * Re-render only happens when this changes.
- */
 function hashOrders(orders) {
   return orders.map(o => `${o.id}:${o.status}`).join('|');
 }
 
-/** Updates the "Last refreshed" indicator in the header. */
 function updateRefreshStamp() {
   const el = document.getElementById('orders-refresh-stamp');
   if (el) {
     el.textContent = `↻ Last updated: ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
   }
 }
-
 
 // ── Render ────────────────────────────────────────────────────
 
@@ -188,14 +206,12 @@ function renderOrders(orders) {
         ${isClosed ? 'opacity:.65;' : ''}
       ">
 
-        <!-- ── Card header bar ─────────────────────── -->
         <div style="
           display:flex; align-items:center; flex-wrap:wrap;
           gap:.75rem; padding:.85rem 1.1rem;
           background:var(--c-bg);
           border-bottom:1px solid var(--c-border);
         ">
-          <!-- TOKEN — the most important thing on the card -->
           <div style="
             display:flex; flex-direction:column; align-items:center;
             background:var(--c-surface);
@@ -213,34 +229,31 @@ function renderOrders(orders) {
             ">${token}</span>
           </div>
 
-          <!-- Table + payment -->
           <div>
             <div style="font-size:1rem; font-weight:700; color:var(--c-text);">Table ${order.table_id}</div>
             <div style="font-size:.78rem; color:var(--c-muted);">${payIcon} ${order.payment_method ?? '—'}</div>
           </div>
 
-          <!-- Status pill -->
           ${statusPill(order.status)}
 
-          <!-- Time pushed right -->
-          <time style="margin-left:auto; font-size:.8rem; color:var(--c-muted); white-space:nowrap;">${time}</time>
+          <button class="btn btn--print" data-id="${order.id}" title="Print Receipt" style="
+            margin-left:auto; font-size:.85rem; padding:.4rem .7rem; 
+            background:var(--c-bg); border:1px solid var(--c-border); 
+            color:var(--c-text); border-radius:var(--radius-sm); cursor:pointer;
+          ">
+            🖨️ Print
+          </button>
+
+          <time style="font-size:.8rem; color:var(--c-muted); white-space:nowrap;">${time}</time>
         </div>
 
-        <!-- ── Items + total ───────────────────────── -->
         <div style="padding:.75rem 1.1rem;">
           ${itemRows}
-          <div style="
-            display:flex; justify-content:flex-end; align-items:center;
-            padding-top:.6rem; margin-top:.3rem;
-          ">
-            <span style="
-              font-size:1.15rem; font-weight:700;
-              color:var(--c-accent-alt);
-            ">Total: ৳${Number(order.total).toFixed(2)}</span>
+          <div style="display:flex; justify-content:flex-end; align-items:center; padding-top:.6rem; margin-top:.3rem;">
+            <span style="font-size:1.15rem; font-weight:700; color:var(--c-accent-alt);">Total: ৳${Number(order.total).toFixed(2)}</span>
           </div>
         </div>
 
-        <!-- ── Action buttons ─────────────────────── -->
         ${isClosed ? '' : `
         <div style="
           display:flex; gap:.5rem; flex-wrap:wrap;
@@ -260,7 +273,7 @@ function renderOrders(orders) {
             </button>` : ''}
           <button class="btn btn--paid" data-id="${order.id}"
             style="font-size:.82rem; padding:.4rem .9rem; background:#1a4a2a; color:#a0ffc0; font-weight:700;">
-            💚 Mark as Paid
+            ✅ Mark as Paid
           </button>
           <button class="btn btn--status btn--danger" data-id="${order.id}" data-status="cancelled"
             style="font-size:.82rem; padding:.4rem .9rem; margin-left:auto; background:var(--c-danger);">
@@ -270,18 +283,104 @@ function renderOrders(orders) {
       </div>
     `;
   }).join('');
+}
 
-  ordersContainer.querySelectorAll('.btn--status').forEach(btn =>
-    btn.addEventListener('click', () => updateOrderStatus(btn.dataset.id, btn.dataset.status))
-  );
-  ordersContainer.querySelectorAll('.btn--paid').forEach(btn =>
-    btn.addEventListener('click', () => markAsPaid(btn.dataset.id, btn))
-  );
+// ── Printable HTML Generation ─────────────────────────────────
+
+/**
+ * Builds printable HTML layout dynamically and calls browser print window.
+ * Designed clean and narrow for thermal POS printers (58mm/80mm compatible).
+ */
+export function printOrderReceipt(order) {
+  const token = order.daily_token ?? order.id.slice(-4).toUpperCase();
+  const dateStr = new Date(order.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+  
+  const itemsHtml = order.order_items.map(i => `
+    <tr>
+      <td style="padding: 6px 0; font-size: 14px;">
+        ${i.menu_items.name}<br>
+        <small style="color: #555;">${i.qty} x ৳${Number(i.unit_price).toFixed(2)}</small>
+      </td>
+      <td style="text-align: right; vertical-align: top; padding: 6px 0; font-size: 14px;">
+        ৳${(i.unit_price * i.qty).toFixed(2)}
+      </td>
+    </tr>
+  `).join('');
+
+  // Open an isolated sandbox window for the raw print layout
+  const printWindow = window.open('', '_blank', 'width=400,height=600');
+  
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Receipt - Token ${token}</title>
+      <style>
+        @page { margin: 0; }
+        body {
+          font-family: 'Courier New', Courier, monospace;
+          color: #000;
+          background: #fff;
+          padding: 20px;
+          margin: 0;
+          max-width: 320px; /* Perfect width constraints for standard POS receipts */
+        }
+        .header { text-align: center; margin-bottom: 15px; }
+        .token-title { font-size: 28px; font-weight: bold; margin: 5px 0; border: 2px dashed #000; padding: 5px; }
+        .details { font-size: 13px; margin-bottom: 10px; line-height: 1.4; }
+        .divider { border-top: 1px dashed #000; margin: 10px 0; }
+        table { width: 100%; border-collapse: collapse; }
+        .total-row { font-size: 18px; font-weight: bold; text-align: right; }
+        .footer { text-align: center; font-size: 12px; margin-top: 20px; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h2 style="margin: 0; font-size: 20px;">KITCHEN RECEIPT</h2>
+        <div class="token-title">TOKEN ${token}</div>
+      </div>
+      
+      <div class="details">
+        <strong>Table:</strong> ${order.table_id}<br>
+        <strong>Date:</strong> ${dateStr}<br>
+        <strong>Payment:</strong> ${order.payment_method?.toUpperCase() ?? 'PENDING'} (${order.status.toUpperCase()})
+      </div>
+      
+      <div class="divider"></div>
+      
+      <table>
+        <tbody>
+          ${itemsHtml}
+        </tbody>
+      </table>
+      
+      <div class="divider"></div>
+      
+      <div class="total-row">
+        Total: ৳${Number(order.total).toFixed(2)}
+      </div>
+      
+      <div class="footer">
+        Thank You!<br>
+        Please keep this voucher.
+      </div>
+
+      <script>
+        // Auto-execution ensures prompt dialog matches lifecycle events cleanly
+        window.onload = function() {
+          window.print();
+          setTimeout(() => { window.close(); }, 500);
+        };
+      <\/script>
+    </body>
+    </html>
+  `);
+
+  printWindow.document.close();
 }
 
 // ── DB updates ────────────────────────────────────────────────
 
-/** Updates order status (pending → preparing → served → cancelled). */
 export async function updateOrderStatus(orderId, status) {
   const { error } = await supabase
     .from('orders')
@@ -289,29 +388,20 @@ export async function updateOrderStatus(orderId, status) {
     .eq('id', orderId);
 
   if (error) console.error('[adminOrders.js] Status update error:', error.message);
-  else pollSoon();   // fast follow-up poll so change appears immediately
+  else pollSoon();
 }
 
-/**
- * Marks an order as paid in Supabase.
- * Sets status = 'paid' and stamps paid_at timestamp.
- * @param {string} orderId
- * @param {HTMLElement} btn  — button element for loading feedback
- */
 export async function markAsPaid(orderId, btn) {
-  // Loading feedback
   if (btn) {
     btn.disabled    = true;
     btn.textContent = 'Processing…';
   }
 
-  // Attempt with paid_at timestamp (requires column to exist)
   let { error } = await supabase
     .from('orders')
     .update({ status: 'paid', paid_at: new Date().toISOString() })
     .eq('id', orderId);
 
-  // If paid_at column doesn't exist yet, fall back to status-only update
   if (error && error.message?.includes('paid_at')) {
     ({ error } = await supabase
       .from('orders')
@@ -328,7 +418,7 @@ export async function markAsPaid(orderId, btn) {
     return;
   }
 
-  pollSoon();   // fast follow-up poll so paid status appears immediately
+  pollSoon();
 }
 
 // ── Boot ──────────────────────────────────────────────────────
