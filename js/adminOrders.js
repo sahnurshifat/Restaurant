@@ -50,11 +50,7 @@ export async function initOrders() {
       }
       if (btnPrint) {
         const orderId = btnPrint.dataset.id;
-        // Fetch full record matching this ID from our current state cache or DOM if needed,
-        // but since we need item names, we pass the order object by reconstructing it or re-fetching.
-        // For simplicity, we find the global raw data or read it from a data attribute. 
-        // Best approach: target the DOM element data or pass down via custom event.
-        // Let's grab the data we injected right out of the window cache or a quick helper.
+        // Fetch full record matching this ID from our current state cache
         const orderData = window._currentOrdersCache?.find(o => o.id === orderId);
         if (orderData) {
           printOrderReceipt(orderData);
@@ -298,8 +294,8 @@ export function printOrderReceipt(order) {
   // ── BRAND CONFIGURATION ─────────────────────────────────────
   const BRAND = {
     name: "GRABZO",
-    tagline:"Every Bite Matters",
-    logoUrl: "https://via.placeholder.com/80", // Replace with your hosted logo URL (square/circle works best)
+    tagline: "Every Bite Matters",
+    logoUrl: "https://via.placeholder.com/80", // Replace with your hosted logo URL
     address: "Pitha Ghor Goli, Jagannathpur, Bahundhara Road",
     phone: "+880 1749-586887",
     website: "www.GRABZO.ONLINE",
@@ -326,7 +322,7 @@ export function printOrderReceipt(order) {
     <!DOCTYPE html>
     <html>
     <head>
-      <title>Receipt - Token ${token}</title>
+      <title>${BRAND.name} - Token ${token}</title>
       <style>
         @page { margin: 0; }
         body {
@@ -338,17 +334,27 @@ export function printOrderReceipt(order) {
           max-width: 320px; /* Perfect width constraints for standard POS receipts */
         }
         .header { text-align: center; margin-bottom: 15px; }
-        .token-title { font-size: 28px; font-weight: bold; margin: 5px 0; border: 2px dashed #000; padding: 5px; }
+        .logo { width: 60px; height: 60px; object-fit: contain; margin-bottom: 5px; }
+        .brand-name { font-size: 22px; font-weight: bold; margin: 0; text-transform: uppercase; }
+        .brand-tagline { font-size: 12px; font-style: italic; margin: 2px 0 5px 0; color: #333; }
+        .brand-details { font-size: 12px; line-height: 1.3; color: #444; }
+        .token-title { font-size: 26px; font-weight: bold; margin: 10px 0; border: 2px dashed #000; padding: 6px; }
         .details { font-size: 13px; margin-bottom: 10px; line-height: 1.4; }
         .divider { border-top: 1px dashed #000; margin: 10px 0; }
         table { width: 100%; border-collapse: collapse; }
-        .total-row { font-size: 18px; font-weight: bold; text-align: right; }
-        .footer { text-align: center; font-size: 12px; margin-top: 20px; }
+        .total-row { font-size: 18px; font-weight: bold; text-align: right; margin-top: 5px; }
+        .footer { text-align: center; font-size: 12px; margin-top: 20px; line-height: 1.4; }
       </style>
     </head>
     <body>
       <div class="header">
-        <h2 style="margin: 0; font-size: 20px;">KITCHEN RECEIPT</h2>
+        ${BRAND.logoUrl ? `<img class="logo" id="brand-logo-img" src="${BRAND.logoUrl}" alt="logo">` : ''}
+        <h1 class="brand-name">${BRAND.name}</h1>
+        <div class="brand-tagline">${BRAND.tagline}</div>
+        <div class="brand-details">
+          ${BRAND.address}<br>
+          Phone: ${BRAND.phone}
+        </div>
         <div class="token-title">TOKEN ${token}</div>
       </div>
       
@@ -373,15 +379,26 @@ export function printOrderReceipt(order) {
       </div>
       
       <div class="footer">
-        Thank You!<br>
-        Please keep this voucher.
+        ${BRAND.thankYouMsg}<br>
+        <strong>${BRAND.website}</strong><br>
+        <span style="font-size: 11px;">Find us on social: ${BRAND.socialHandle}</span>
       </div>
 
       <script>
-        // Auto-execution ensures prompt dialog matches lifecycle events cleanly
-        window.onload = function() {
+        function runPrintCommand() {
           window.print();
           setTimeout(() => { window.close(); }, 500);
+        }
+
+        window.onload = function() {
+          const img = document.getElementById('brand-logo-img');
+          // If a logo is present and hasn't loaded yet, wait for it so it doesn't print blank
+          if (img && !img.complete) {
+            img.onload = runPrintCommand;
+            img.onerror = runPrintCommand;
+          } else {
+            runPrintCommand();
+          }
         };
       <\/script>
     </body>
