@@ -294,6 +294,18 @@ function renderOrders(orders) {
 export function printOrderReceipt(order) {
   const token = order.daily_token ?? order.id.slice(-4).toUpperCase();
   const dateStr = new Date(order.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+
+  // ── BRAND CONFIGURATION ─────────────────────────────────────
+  const BRAND = {
+    name: "GRABZO",
+    tagline:"Every Bite Matters",
+    logoUrl: "https://via.placeholder.com/80", // Replace with your hosted logo URL (square/circle works best)
+    address: "Pitha Ghor Goli, Jagannathpur, Bahundhara Road",
+    phone: "+880 1749-586887",
+    website: "www.GRABZO.ONLINE",
+    thankYouMsg: "Thanks for dining with us!",
+    socialHandle: "@GRABZO"
+  };
   
   const itemsHtml = order.order_items.map(i => `
     <tr>
