@@ -1,8 +1,10 @@
 // ============================================================
 // adminOrders.js — Today's orders: fetch, render, status +
-//                  "Mark as Paid" & "Print Receipt"
+//                  "Mark as Paid" with Supabase DB update
 //
 // ⚡ Uses polling instead of Realtime (free tier compatible).
+//    Polls every 8s normally, every 3s when a status update
+//    was just made (so the change feels instant to the admin).
 // ============================================================
 
 import { supabase }     from './supabaseClient.js';
@@ -16,7 +18,7 @@ await requireAuth();
 
 const POLL_NORMAL_MS = 8000;   // 8s — background idle polling
 const POLL_FAST_MS   = 3000;   // 3s — right after a status change
-let   _pollTimer       = null;
+let   _pollTimer     = null;
 let   _lastOrderHash = '';     // lightweight change detection
 
 // ── Date helpers ──────────────────────────────────────────────
@@ -33,31 +35,9 @@ function todayRange() {
 export async function initOrders() {
   await fetchOrders();
   schedulePoll(POLL_NORMAL_MS);
+
+  // Show last-refreshed time in header
   updateRefreshStamp();
-
-  // Bind a single centralized click listener for all button actions (Event Delegation)
-  if (ordersContainer) {
-    ordersContainer.addEventListener('click', async (e) => {
-      const btnStatus = e.target.closest('.btn--status');
-      const btnPaid   = e.target.closest('.btn--paid');
-      const btnPrint  = e.target.closest('.btn--print');
-
-      if (btnStatus) {
-        updateOrderStatus(btnStatus.dataset.id, btnStatus.dataset.status);
-      }
-      if (btnPaid) {
-        markAsPaid(btnPaid.dataset.id, btnPaid);
-      }
-      if (btnPrint) {
-        const orderId = btnPrint.dataset.id;
-        // Fetch full record matching this ID from our current state cache
-        const orderData = window._currentOrdersCache?.find(o => o.id === orderId);
-        if (orderData) {
-          printOrderReceipt(orderData);
-        }
-      }
-    });
-  }
 }
 
 /** Schedules the next poll, cancelling any existing timer. */
@@ -65,11 +45,11 @@ function schedulePoll(intervalMs) {
   clearTimeout(_pollTimer);
   _pollTimer = setTimeout(async () => {
     await fetchOrders();
-    schedulePoll(POLL_NORMAL_MS);
+    schedulePoll(POLL_NORMAL_MS);   // always return to normal interval after each poll
   }, intervalMs);
 }
 
-/** Triggers a fast follow-up poll after an action. */
+/** Triggers a fast follow-up poll after an action (status change, paid). */
 function pollSoon() {
   schedulePoll(POLL_FAST_MS);
 }
@@ -102,29 +82,35 @@ async function fetchOrders() {
   if (error) {
     console.error('[adminOrders.js] Fetch error:', error.message);
     if (ordersContainer && !ordersContainer.querySelector('[data-id]')) {
+      // Only show error if there's nothing rendered yet
       ordersContainer.innerHTML = '<p class="empty-state error">Failed to load orders. Retrying…</p>';
     }
     return;
   }
 
-  // Save to window cache so print function can access full object fields easily
-  window._currentOrdersCache = data ?? [];
-
-  const newHash = hashOrders(data ?? []);
+  // ── Change detection: only re-render if data actually changed ─
+  // Avoids flickering/losing scroll position on every 8s poll
+  const newHash = hashOrders(_ordersCache);
   if (newHash === _lastOrderHash) {
-    updateRefreshStamp();
+    updateRefreshStamp();   // still update the timestamp
     return;
   }
   _lastOrderHash = newHash;
 
-  renderOrders(data ?? []);
+  _ordersCache = orders ?? [];
+  renderOrders(_ordersCache);
   updateRefreshStamp();
 }
 
+/**
+ * Lightweight string fingerprint of orders.
+ * Re-render only happens when this changes.
+ */
 function hashOrders(orders) {
   return orders.map(o => `${o.id}:${o.status}`).join('|');
 }
 
+/** Updates the "Last refreshed" indicator in the header. */
 function updateRefreshStamp() {
   const el = document.getElementById('orders-refresh-stamp');
   if (el) {
@@ -132,13 +118,14 @@ function updateRefreshStamp() {
   }
 }
 
+
 // ── Render ────────────────────────────────────────────────────
 
 const STATUS_CFG = {
   pending:   { label: '⏳ Pending',   bg: '#4a3a00', color: '#ffd060', border: '#8a6a00' },
   preparing: { label: '🔥 Preparing', bg: '#003a5a', color: '#60c0ff', border: '#006a9a' },
   served:    { label: '✅ Served',    bg: '#003a20', color: '#60e090', border: '#006a40' },
-  paid:      { label: '✅ Paid',      bg: '#003a20', color: '#a0ffc0', border: '#00aa60' },
+  paid:      { label: '💚 Paid',      bg: '#003a20', color: '#a0ffc0', border: '#00aa60' },
   cancelled: { label: '✕ Cancelled', bg: '#3a0000', color: '#ff9090', border: '#8a0000' },
 };
 
@@ -202,12 +189,14 @@ function renderOrders(orders) {
         ${isClosed ? 'opacity:.65;' : ''}
       ">
 
+        <!-- ── Card header bar ─────────────────────── -->
         <div style="
           display:flex; align-items:center; flex-wrap:wrap;
           gap:.75rem; padding:.85rem 1.1rem;
           background:var(--c-bg);
           border-bottom:1px solid var(--c-border);
         ">
+          <!-- TOKEN — the most important thing on the card -->
           <div style="
             display:flex; flex-direction:column; align-items:center;
             background:var(--c-surface);
@@ -225,191 +214,93 @@ function renderOrders(orders) {
             ">${token}</span>
           </div>
 
+          <!-- Table + payment -->
           <div>
             <div style="font-size:1rem; font-weight:700; color:var(--c-text);">Table ${order.table_id}</div>
             <div style="font-size:.78rem; color:var(--c-muted);">${payIcon} ${order.payment_method ?? '—'}</div>
           </div>
 
+          <!-- Status pill -->
           ${statusPill(order.status)}
 
-          <button class="btn btn--print" data-id="${order.id}" title="Print Receipt" style="
-            margin-left:auto; font-size:.85rem; padding:.4rem .7rem; 
-            background:var(--c-bg); border:1px solid var(--c-border); 
-            color:var(--c-text); border-radius:var(--radius-sm); cursor:pointer;
-          ">
-            🖨️ Print
-          </button>
-
-          <time style="font-size:.8rem; color:var(--c-muted); white-space:nowrap;">${time}</time>
+          <!-- Time pushed right -->
+          <time style="margin-left:auto; font-size:.8rem; color:var(--c-muted); white-space:nowrap;">${time}</time>
         </div>
 
+        <!-- ── Items + total ───────────────────────── -->
         <div style="padding:.75rem 1.1rem;">
           ${itemRows}
-          <div style="display:flex; justify-content:flex-end; align-items:center; padding-top:.6rem; margin-top:.3rem;">
-            <span style="font-size:1.15rem; font-weight:700; color:var(--c-accent-alt);">Total: ৳${Number(order.total).toFixed(2)}</span>
+          <div style="
+            display:flex; justify-content:flex-end; align-items:center;
+            padding-top:.6rem; margin-top:.3rem;
+          ">
+            <span style="
+              font-size:1.15rem; font-weight:700;
+              color:var(--c-accent-alt);
+            ">Total: ৳${Number(order.total).toFixed(2)}</span>
           </div>
         </div>
 
-        ${isClosed ? '' : `
+        <!-- ── Action buttons ─────────────────────── -->
         <div style="
           display:flex; gap:.5rem; flex-wrap:wrap;
           padding:.75rem 1.1rem;
           border-top:1px solid var(--c-border);
           background:var(--c-bg);
         ">
-          ${order.status !== 'preparing' ? `
-            <button class="btn btn--status" data-id="${order.id}" data-status="preparing"
-              style="font-size:.82rem; padding:.4rem .9rem; background:#1a3a5a; color:#90c8ff;">
-              🔥 Preparing
-            </button>` : ''}
-          ${order.status !== 'served' ? `
-            <button class="btn btn--status" data-id="${order.id}" data-status="served"
-              style="font-size:.82rem; padding:.4rem .9rem; background:#1a3a20; color:#80e0a0;">
-              ✅ Served
-            </button>` : ''}
-          <button class="btn btn--paid" data-id="${order.id}"
-            style="font-size:.82rem; padding:.4rem .9rem; background:#1a4a2a; color:#a0ffc0; font-weight:700;">
-            ✅ Mark as Paid
+          ${!isClosed ? `
+            ${order.status !== 'preparing' ? `
+              <button class="btn btn--status" data-id="${order.id}" data-status="preparing"
+                style="font-size:.82rem; padding:.4rem .9rem; background:#1a3a5a; color:#90c8ff;">
+                Preparing
+              </button>` : ''}
+            ${order.status !== 'served' ? `
+              <button class="btn btn--status" data-id="${order.id}" data-status="served"
+                style="font-size:.82rem; padding:.4rem .9rem; background:#1a3a20; color:#80e0a0;">
+                Served
+              </button>` : ''}
+            <button class="btn btn--paid" data-id="${order.id}"
+              style="font-size:.82rem; padding:.4rem .9rem; background:#1a4a2a; color:#a0ffc0; font-weight:700;">
+              Mark as Paid
+            </button>
+            <button class="btn btn--status btn--danger" data-id="${order.id}" data-status="cancelled"
+              style="font-size:.82rem; padding:.4rem .9rem; background:var(--c-danger);">
+              Cancel
+            </button>
+          ` : ''}
+
+          <!-- Print button — always visible on every order -->
+          <button class="btn btn--print-order" data-id="${order.id}"
+            style="
+              font-size:.82rem; padding:.4rem .9rem;
+              background:var(--c-surface); border:1px solid var(--c-border);
+              color:var(--c-text); margin-left:auto;
+            ">
+            Print Invoice
           </button>
-          <button class="btn btn--status btn--danger" data-id="${order.id}" data-status="cancelled"
-            style="font-size:.82rem; padding:.4rem .9rem; margin-left:auto; background:var(--c-danger);">
-            ✕ Cancel
-          </button>
-        </div>`}
+        </div>
       </div>
     `;
   }).join('');
-}
 
-// ── Printable HTML Generation ─────────────────────────────────
-
-/**
- * Builds printable HTML layout dynamically and calls browser print window.
- * Designed clean and narrow for thermal POS printers (58mm/80mm compatible).
- */
-export function printOrderReceipt(order) {
-  const token = order.daily_token ?? order.id.slice(-4).toUpperCase();
-  const dateStr = new Date(order.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
-
-  // ── BRAND CONFIGURATION ─────────────────────────────────────
-  const BRAND = {
-    name: "GRABZO",
-    tagline: "Every Bite Matters",
-    logoUrl: "https://via.placeholder.com/80", // Replace with your hosted logo URL
-    address: "Pitha Ghor Goli, Jagannathpur, Bahundhara Road",
-    phone: "+880 1749-586887",
-    website: "www.GRABZO.ONLINE",
-    thankYouMsg: "Thanks for dining with us!",
-    socialHandle: "@GRABZO"
-  };
-  
-  const itemsHtml = order.order_items.map(i => `
-    <tr>
-      <td style="padding: 6px 0; font-size: 14px;">
-        ${i.menu_items.name}<br>
-        <small style="color: #555;">${i.qty} x ৳${Number(i.unit_price).toFixed(2)}</small>
-      </td>
-      <td style="text-align: right; vertical-align: top; padding: 6px 0; font-size: 14px;">
-        ৳${(i.unit_price * i.qty).toFixed(2)}
-      </td>
-    </tr>
-  `).join('');
-
-  // Open an isolated sandbox window for the raw print layout
-  const printWindow = window.open('', '_blank', 'width=400,height=600');
-  
-  printWindow.document.write(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>${BRAND.name} - Token ${token}</title>
-      <style>
-        @page { margin: 0; }
-        body {
-          font-family: 'Courier New', Courier, monospace;
-          color: #000;
-          background: #fff;
-          padding: 20px;
-          margin: 0;
-          max-width: 320px; /* Perfect width constraints for standard POS receipts */
-        }
-        .header { text-align: center; margin-bottom: 15px; }
-        .logo { width: 60px; height: 60px; object-fit: contain; margin-bottom: 5px; }
-        .brand-name { font-size: 22px; font-weight: bold; margin: 0; text-transform: uppercase; }
-        .brand-tagline { font-size: 12px; font-style: italic; margin: 2px 0 5px 0; color: #333; }
-        .brand-details { font-size: 12px; line-height: 1.3; color: #444; }
-        .token-title { font-size: 26px; font-weight: bold; margin: 10px 0; border: 2px dashed #000; padding: 6px; }
-        .details { font-size: 13px; margin-bottom: 10px; line-height: 1.4; }
-        .divider { border-top: 1px dashed #000; margin: 10px 0; }
-        table { width: 100%; border-collapse: collapse; }
-        .total-row { font-size: 18px; font-weight: bold; text-align: right; margin-top: 5px; }
-        .footer { text-align: center; font-size: 12px; margin-top: 20px; line-height: 1.4; }
-      </style>
-    </head>
-    <body>
-      <div class="header">
-        ${BRAND.logoUrl ? `<img class="logo" id="brand-logo-img" src="${BRAND.logoUrl}" alt="logo">` : ''}
-        <h1 class="brand-name">${BRAND.name}</h1>
-        <div class="brand-tagline">${BRAND.tagline}</div>
-        <div class="brand-details">
-          ${BRAND.address}<br>
-          Phone: ${BRAND.phone}
-        </div>
-        <div class="token-title">TOKEN ${token}</div>
-      </div>
-      
-      <div class="details">
-        <strong>Table:</strong> ${order.table_id}<br>
-        <strong>Date:</strong> ${dateStr}<br>
-        <strong>Payment:</strong> ${order.payment_method?.toUpperCase() ?? 'PENDING'} (${order.status.toUpperCase()})
-      </div>
-      
-      <div class="divider"></div>
-      
-      <table>
-        <tbody>
-          ${itemsHtml}
-        </tbody>
-      </table>
-      
-      <div class="divider"></div>
-      
-      <div class="total-row">
-        Total: ৳${Number(order.total).toFixed(2)}
-      </div>
-      
-      <div class="footer">
-        ${BRAND.thankYouMsg}<br>
-        <strong>${BRAND.website}</strong><br>
-        <span style="font-size: 11px;">Find us on social: ${BRAND.socialHandle}</span>
-      </div>
-
-      <script>
-        function runPrintCommand() {
-          window.print();
-          setTimeout(() => { window.close(); }, 500);
-        }
-
-        window.onload = function() {
-          const img = document.getElementById('brand-logo-img');
-          // If a logo is present and hasn't loaded yet, wait for it so it doesn't print blank
-          if (img && !img.complete) {
-            img.onload = runPrintCommand;
-            img.onerror = runPrintCommand;
-          } else {
-            runPrintCommand();
-          }
-        };
-      <\/script>
-    </body>
-    </html>
-  `);
-
-  printWindow.document.close();
+  ordersContainer.querySelectorAll('.btn--status').forEach(btn =>
+    btn.addEventListener('click', () => updateOrderStatus(btn.dataset.id, btn.dataset.status))
+  );
+  ordersContainer.querySelectorAll('.btn--paid').forEach(btn =>
+    btn.addEventListener('click', () => markAsPaid(btn.dataset.id, btn))
+  );
+  ordersContainer.querySelectorAll('.btn--print-order').forEach(btn =>
+    btn.addEventListener('click', () => {
+      const card  = btn.closest('[data-id]');
+      const order = _ordersCache.find(o => o.id === card.dataset.id);
+      if (order) printInvoice(order);
+    })
+  );
 }
 
 // ── DB updates ────────────────────────────────────────────────
 
+/** Updates order status (pending → preparing → served → cancelled). */
 export async function updateOrderStatus(orderId, status) {
   const { error } = await supabase
     .from('orders')
@@ -417,20 +308,29 @@ export async function updateOrderStatus(orderId, status) {
     .eq('id', orderId);
 
   if (error) console.error('[adminOrders.js] Status update error:', error.message);
-  else pollSoon();
+  else pollSoon();   // fast follow-up poll so change appears immediately
 }
 
+/**
+ * Marks an order as paid in Supabase.
+ * Sets status = 'paid' and stamps paid_at timestamp.
+ * @param {string} orderId
+ * @param {HTMLElement} btn  — button element for loading feedback
+ */
 export async function markAsPaid(orderId, btn) {
+  // Loading feedback
   if (btn) {
     btn.disabled    = true;
     btn.textContent = 'Processing…';
   }
 
+  // Attempt with paid_at timestamp (requires column to exist)
   let { error } = await supabase
     .from('orders')
     .update({ status: 'paid', paid_at: new Date().toISOString() })
     .eq('id', orderId);
 
+  // If paid_at column doesn't exist yet, fall back to status-only update
   if (error && error.message?.includes('paid_at')) {
     ({ error } = await supabase
       .from('orders')
@@ -447,8 +347,145 @@ export async function markAsPaid(orderId, btn) {
     return;
   }
 
-  pollSoon();
+  pollSoon();   // fast follow-up poll so paid status appears immediately
 }
+
+// ── Print Invoice ─────────────────────────────────────────────
+
+/**
+ * Opens a clean printable invoice in a new tab for the given order.
+ * The browser print dialog opens automatically.
+ * @param {object} order — full order object from _ordersCache
+ */
+function printInvoice(order) {
+  const token   = order.daily_token ?? order.id.slice(-4).toUpperCase();
+  const dateStr = new Date(order.created_at).toLocaleString('en-BD', {
+    dateStyle: 'medium', timeStyle: 'short',
+  });
+  const payLabels = { cash: 'Cash', mobile: 'Mobile Pay', card: 'Card' };
+  const payLabel  = payLabels[order.payment_method] ?? order.payment_method ?? '—';
+
+  const itemRows = order.order_items.map((item, i) => `
+    <tr style="background:${i % 2 === 0 ? '#fff' : '#fafafa'};">
+      <td style="padding:8px 12px; border-bottom:1px solid #eee;">${item.menu_items.name}</td>
+      <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:center;">${item.qty}</td>
+      <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:right;">
+        &#2547;${Number(item.unit_price).toFixed(2)}
+      </td>
+      <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:right; font-weight:600;">
+        &#2547;${(Number(item.unit_price) * item.qty).toFixed(2)}
+      </td>
+    </tr>
+  `).join('');
+
+  const grandTotal = order.order_items.reduce(
+    (sum, i) => sum + Number(i.unit_price) * i.qty, 0
+  );
+
+  const html = `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8" />
+      <title>Invoice — Token ${token} — Khana Pina</title>
+      <style>
+        * { box-sizing:border-box; margin:0; padding:0; }
+        body { font-family:Arial, sans-serif; font-size:13px; color:#111; padding:32px; max-width:600px; margin:0 auto; }
+
+        .header { text-align:center; margin-bottom:24px; padding-bottom:16px; border-bottom:2px solid #c9603a; }
+        .header h1 { font-size:24px; color:#c9603a; margin-bottom:4px; }
+        .header p  { color:#666; font-size:12px; }
+
+        .meta { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; flex-wrap:wrap; gap:12px; }
+        .meta-left p { font-size:12px; color:#666; margin-bottom:3px; }
+        .meta-left strong { font-size:14px; color:#111; }
+
+        .token-box { border:1.5px dashed #c9603a; border-radius:6px; padding:6px 16px; text-align:center; }
+        .token-box .label { font-size:9px; text-transform:uppercase; letter-spacing:.1em; color:#888; }
+        .token-box .value { font-size:28px; font-weight:700; color:#c9603a; letter-spacing:.1em; line-height:1.1; }
+
+        .status-row { display:flex; gap:12px; align-items:center; margin-bottom:20px; }
+        .badge { display:inline-block; padding:3px 12px; border-radius:99px; font-size:11px; font-weight:600; }
+        .badge-status { background:#e8f0e8; color:#2a6a2a; border:1px solid #8aca8a; }
+        .badge-pay    { background:#f0f0e8; color:#6a6a2a; border:1px solid #caca8a; }
+
+        table { width:100%; border-collapse:collapse; margin-bottom:16px; }
+        thead tr { background:#c9603a; color:#fff; }
+        th { padding:9px 12px; text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.05em; }
+        th:nth-child(2) { text-align:center; }
+        th:nth-child(3), th:nth-child(4) { text-align:right; }
+
+        .total-row { display:flex; justify-content:space-between; align-items:center; padding:12px 14px; background:#fef6f3; border:1px solid #e8c8b8; border-radius:6px; margin-top:4px; }
+        .total-row span:first-child { font-size:14px; font-weight:600; }
+        .total-row span:last-child  { font-size:20px; font-weight:700; color:#c9603a; }
+
+        .footer { margin-top:28px; text-align:center; font-size:11px; color:#aaa; border-top:1px solid #eee; padding-top:16px; }
+
+        @media print {
+          body { padding:16px; }
+          @page { margin:1cm; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>Khana Pina</h1>
+        <p>Your Restaurant Address &nbsp;|&nbsp; Your Phone Number</p>
+        <p>${dateStr}</p>
+      </div>
+
+      <div class="meta">
+        <div class="meta-left">
+          <p>Order ID</p>
+          <strong>#${order.id.slice(0, 8).toUpperCase()}</strong>
+          <p style="margin-top:8px;">Table</p>
+          <strong>${order.table_id}</strong>
+        </div>
+        <div class="token-box">
+          <p class="label">Token No.</p>
+          <p class="value">${token}</p>
+        </div>
+      </div>
+
+      <div class="status-row">
+        <span class="badge badge-status">${order.status.charAt(0).toUpperCase() + order.status.slice(1)}</span>
+        <span class="badge badge-pay">${payLabel}</span>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Qty</th>
+            <th>Unit Price</th>
+            <th>Subtotal</th>
+          </tr>
+        </thead>
+        <tbody>${itemRows}</tbody>
+      </table>
+
+      <div class="total-row">
+        <span>Grand Total</span>
+        <span>&#2547;${grandTotal.toFixed(2)}</span>
+      </div>
+
+      <div class="footer">
+        <p>Thank you for dining with us!</p>
+        <p style="margin-top:4px;">Please visit again.</p>
+      </div>
+
+      <script>window.onload = function() { window.print(); }</script>
+    </body>
+    </html>
+  `;
+
+  const win = window.open('', '_blank');
+  win.document.write(html);
+  win.document.close();
+}
+
+// ── Orders cache (for print access) ──────────────────────────
+let _ordersCache = [];
 
 // ── Boot ──────────────────────────────────────────────────────
 
