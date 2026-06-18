@@ -14,6 +14,9 @@ const ordersContainer = document.getElementById('orders-container');
 
 await requireAuth();
 
+// ── Orders cache (for print access) ──────────────────────────
+let _ordersCache = [];
+
 // ── Polling config ────────────────────────────────────────────
 
 const POLL_NORMAL_MS = 8000;   // 8s — background idle polling
@@ -82,22 +85,22 @@ async function fetchOrders() {
   if (error) {
     console.error('[adminOrders.js] Fetch error:', error.message);
     if (ordersContainer && !ordersContainer.querySelector('[data-id]')) {
-      // Only show error if there's nothing rendered yet
       ordersContainer.innerHTML = '<p class="empty-state error">Failed to load orders. Retrying…</p>';
     }
     return;
   }
 
+  const freshOrders = data ?? [];
+
   // ── Change detection: only re-render if data actually changed ─
-  // Avoids flickering/losing scroll position on every 8s poll
-  const newHash = hashOrders(_ordersCache);
+  const newHash = hashOrders(freshOrders);
   if (newHash === _lastOrderHash) {
-    updateRefreshStamp();   // still update the timestamp
+    updateRefreshStamp();
     return;
   }
   _lastOrderHash = newHash;
 
-  _ordersCache = orders ?? [];
+  _ordersCache = freshOrders;
   renderOrders(_ordersCache);
   updateRefreshStamp();
 }
@@ -484,9 +487,9 @@ function printInvoice(order) {
   win.document.close();
 }
 
-// ── Orders cache (for print access) ──────────────────────────
-let _ordersCache = [];
-
 // ── Boot ──────────────────────────────────────────────────────
 
 initOrders();
+
+// ── Orders cache (for print access) ──────────────────────────
+let _ordersCache = [];
