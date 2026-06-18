@@ -490,6 +490,3 @@ function printInvoice(order) {
 // ── Boot ──────────────────────────────────────────────────────
 
 initOrders();
-
-// ── Orders cache (for print access) ──────────────────────────
-let _ordersCache = [];
