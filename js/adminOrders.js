@@ -367,121 +367,239 @@ function printInvoice(order) {
   });
   const payLabels = { cash: 'Cash', mobile: 'Mobile Pay', card: 'Card' };
   const payLabel  = payLabels[order.payment_method] ?? order.payment_method ?? '—';
-
-  const itemRows = order.order_items.map((item, i) => `
-    <tr style="background:${i % 2 === 0 ? '#fff' : '#fafafa'};">
-      <td style="padding:8px 12px; border-bottom:1px solid #eee;">${item.menu_items.name}</td>
-      <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:center;">${item.qty}</td>
-      <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:right;">
-        &#2547;${Number(item.unit_price).toFixed(2)}
-      </td>
-      <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:right; font-weight:600;">
-        &#2547;${(Number(item.unit_price) * item.qty).toFixed(2)}
-      </td>
-    </tr>
-  `).join('');
-
+ 
+  const itemRows = order.order_items.map(item => {
+    const subtotal = Number(item.unit_price) * item.qty;
+    return `
+      <tr>
+        <td style="padding:5px 0; font-size:13px;">${item.menu_items.name}</td>
+        <td style="padding:5px 0; font-size:13px; text-align:center;">${item.qty}</td>
+        <td style="padding:5px 0; font-size:13px; text-align:right;">&#2547;${Number(item.unit_price).toFixed(2)}</td>
+        <td style="padding:5px 0; font-size:13px; text-align:right;">&#2547;${subtotal.toFixed(2)}</td>
+      </tr>
+    `;
+  }).join('');
+ 
   const grandTotal = order.order_items.reduce(
     (sum, i) => sum + Number(i.unit_price) * i.qty, 0
   );
-
+ 
   const html = `
     <!DOCTYPE html>
     <html lang="en">
     <head>
       <meta charset="UTF-8" />
-      <title>Invoice — Token ${token} — Khana Pina</title>
+      <title>Receipt — ${token} — GRABZO</title>
       <style>
         * { box-sizing:border-box; margin:0; padding:0; }
-        body { font-family:Arial, sans-serif; font-size:13px; color:#111; padding:32px; max-width:600px; margin:0 auto; }
-
-        .header { text-align:center; margin-bottom:24px; padding-bottom:16px; border-bottom:2px solid #c9603a; }
-        .header h1 { font-size:24px; color:#c9603a; margin-bottom:4px; }
-        .header p  { color:#666; font-size:12px; }
-
-        .meta { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; flex-wrap:wrap; gap:12px; }
-        .meta-left p { font-size:12px; color:#666; margin-bottom:3px; }
-        .meta-left strong { font-size:14px; color:#111; }
-
-        .token-box { border:1.5px dashed #c9603a; border-radius:6px; padding:6px 16px; text-align:center; }
-        .token-box .label { font-size:9px; text-transform:uppercase; letter-spacing:.1em; color:#888; }
-        .token-box .value { font-size:28px; font-weight:700; color:#c9603a; letter-spacing:.1em; line-height:1.1; }
-
-        .status-row { display:flex; gap:12px; align-items:center; margin-bottom:20px; }
-        .badge { display:inline-block; padding:3px 12px; border-radius:99px; font-size:11px; font-weight:600; }
-        .badge-status { background:#e8f0e8; color:#2a6a2a; border:1px solid #8aca8a; }
-        .badge-pay    { background:#f0f0e8; color:#6a6a2a; border:1px solid #caca8a; }
-
-        table { width:100%; border-collapse:collapse; margin-bottom:16px; }
-        thead tr { background:#c9603a; color:#fff; }
-        th { padding:9px 12px; text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.05em; }
-        th:nth-child(2) { text-align:center; }
-        th:nth-child(3), th:nth-child(4) { text-align:right; }
-
-        .total-row { display:flex; justify-content:space-between; align-items:center; padding:12px 14px; background:#fef6f3; border:1px solid #e8c8b8; border-radius:6px; margin-top:4px; }
-        .total-row span:first-child { font-size:14px; font-weight:600; }
-        .total-row span:last-child  { font-size:20px; font-weight:700; color:#c9603a; }
-
-        .footer { margin-top:28px; text-align:center; font-size:11px; color:#aaa; border-top:1px solid #eee; padding-top:16px; }
-
+ 
+        body {
+          font-family: 'Courier New', Courier, monospace;
+          font-size: 13px;
+          color: #111;
+          background: #fff;
+          display: flex;
+          justify-content: center;
+          padding: 24px 16px;
+        }
+ 
+        .receipt {
+          width: 100%;
+          max-width: 320px;
+        }
+ 
+        .receipt-header {
+          text-align: center;
+          margin-bottom: 12px;
+          padding-bottom: 12px;
+          border-bottom: 1px dashed #aaa;
+        }
+        .receipt-header h1 {
+          font-size: 22px;
+          font-weight: 900;
+          letter-spacing: .08em;
+          text-transform: uppercase;
+          margin-bottom: 2px;
+        }
+        .receipt-header .tagline {
+          font-size: 11px;
+          font-style: italic;
+          color: #555;
+          margin-bottom: 6px;
+        }
+        .receipt-header .address {
+          font-size: 11px;
+          color: #555;
+          line-height: 1.5;
+        }
+ 
+        .receipt-info {
+          margin: 10px 0;
+          padding-bottom: 10px;
+          border-bottom: 1px dashed #aaa;
+          font-size: 12px;
+          line-height: 1.8;
+        }
+        .receipt-info .row {
+          display: flex;
+          justify-content: space-between;
+        }
+        .receipt-info .label { color: #555; }
+        .receipt-info .value { font-weight: 700; }
+ 
+        .token-box {
+          text-align: center;
+          margin: 10px 0;
+          padding: 8px;
+          border: 1px dashed #aaa;
+        }
+        .token-box .token-label {
+          font-size: 10px;
+          text-transform: uppercase;
+          letter-spacing: .1em;
+          color: #888;
+        }
+        .token-box .token-value {
+          font-size: 32px;
+          font-weight: 900;
+          letter-spacing: .15em;
+        }
+ 
+        .receipt-items {
+          margin: 10px 0;
+          padding-bottom: 10px;
+          border-bottom: 1px dashed #aaa;
+        }
+        .receipt-items table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+        .receipt-items thead th {
+          font-size: 10px;
+          text-transform: uppercase;
+          letter-spacing: .05em;
+          color: #555;
+          padding: 4px 0;
+          border-bottom: 1px solid #ddd;
+        }
+        .receipt-items thead th:nth-child(2) { text-align:center; }
+        .receipt-items thead th:nth-child(3),
+        .receipt-items thead th:nth-child(4) { text-align:right; }
+        .receipt-items tbody td { border-bottom: 1px dotted #eee; }
+        .receipt-items tbody tr:last-child td { border-bottom: none; }
+ 
+        .receipt-total {
+          margin: 10px 0;
+          padding-bottom: 10px;
+          border-bottom: 1px dashed #aaa;
+        }
+        .receipt-total .total-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 6px 0;
+        }
+        .receipt-total .grand {
+          font-size: 16px;
+          font-weight: 900;
+          border-top: 1px solid #111;
+          margin-top: 4px;
+          padding-top: 6px;
+        }
+ 
+        .receipt-footer {
+          text-align: center;
+          margin-top: 14px;
+          font-size: 11px;
+          color: #555;
+          line-height: 1.8;
+        }
+        .receipt-footer .thank-you {
+          font-size: 13px;
+          font-weight: 700;
+          margin-bottom: 4px;
+        }
+ 
         @media print {
-          body { padding:16px; }
-          @page { margin:1cm; }
+          body { padding: 0; }
+          @page { margin: 0.5cm; size: 80mm auto; }
         }
       </style>
     </head>
     <body>
-      <div class="header">
-        <h1>Khana Pina</h1>
-        <p>Your Restaurant Address &nbsp;|&nbsp; Your Phone Number</p>
-        <p>${dateStr}</p>
-      </div>
-
-      <div class="meta">
-        <div class="meta-left">
-          <p>Order ID</p>
-          <strong>#${order.id.slice(0, 8).toUpperCase()}</strong>
-          <p style="margin-top:8px;">Table</p>
-          <strong>${order.table_id}</strong>
+      <div class="receipt">
+ 
+        <div class="receipt-header">
+          <h1>GRABZO</h1>
+          <p class="tagline">Every Bite Matters</p>
+          <p class="address">
+            Pitha Ghor Goli, Jagannathpur<br>
+            Bashundhara Road<br>
+            +880 1749-586887
+          </p>
         </div>
+ 
+        <div class="receipt-info">
+          <div class="row">
+            <span class="label">Date</span>
+            <span class="value">${dateStr}</span>
+          </div>
+          <div class="row">
+            <span class="label">Order ID</span>
+            <span class="value">#${order.id.slice(0, 8).toUpperCase()}</span>
+          </div>
+          <div class="row">
+            <span class="label">Table</span>
+            <span class="value">${order.table_id}</span>
+          </div>
+          <div class="row">
+            <span class="label">Payment</span>
+            <span class="value">${payLabel}</span>
+          </div>
+          <div class="row">
+            <span class="label">Status</span>
+            <span class="value">${order.status.charAt(0).toUpperCase() + order.status.slice(1)}</span>
+          </div>
+        </div>
+ 
         <div class="token-box">
-          <p class="label">Token No.</p>
-          <p class="value">${token}</p>
+          <p class="token-label">Token No.</p>
+          <p class="token-value">${token}</p>
         </div>
+ 
+        <div class="receipt-items">
+          <table>
+            <thead>
+              <tr>
+                <th style="text-align:left;">Item</th>
+                <th>Qty</th>
+                <th>Price</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>${itemRows}</tbody>
+          </table>
+        </div>
+ 
+        <div class="receipt-total">
+          <div class="total-row grand">
+            <span>GRAND TOTAL</span>
+            <span>&#2547;${grandTotal.toFixed(2)}</span>
+          </div>
+        </div>
+ 
+        <div class="receipt-footer">
+          <p class="thank-you">Thank you for dining with us!</p>
+          <p>Please visit again</p>
+          <p style="margin-top:8px; font-size:10px;">*** Customer Copy ***</p>
+        </div>
+ 
       </div>
-
-      <div class="status-row">
-        <span class="badge badge-status">${order.status.charAt(0).toUpperCase() + order.status.slice(1)}</span>
-        <span class="badge badge-pay">${payLabel}</span>
-      </div>
-
-      <table>
-        <thead>
-          <tr>
-            <th>Item</th>
-            <th>Qty</th>
-            <th>Unit Price</th>
-            <th>Subtotal</th>
-          </tr>
-        </thead>
-        <tbody>${itemRows}</tbody>
-      </table>
-
-      <div class="total-row">
-        <span>Grand Total</span>
-        <span>&#2547;${grandTotal.toFixed(2)}</span>
-      </div>
-
-      <div class="footer">
-        <p>Thank you for dining with us!</p>
-        <p style="margin-top:4px;">Please visit again.</p>
-      </div>
-
       <script>window.onload = function() { window.print(); }</script>
     </body>
     </html>
   `;
-
+ 
   const win = window.open('', '_blank');
   win.document.write(html);
   win.document.close();

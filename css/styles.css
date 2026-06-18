@@ -8,15 +8,15 @@
 
 /* ── Design Tokens ────────────────────────────────────────── */
 :root {
-  --c-bg:         #1a1611;
-  --c-surface:    #252018;
-  --c-border:     #3a3228;
-  --c-text:       #e8dcc8;
-  --c-muted:      #8a7d6b;
-  --c-accent:     #c9603a;    /* terracotta */
-  --c-accent-alt: #e8a87c;    /* warm peach */
-  --c-success:    #5a8a5a;
-  --c-danger:     #8a3a3a;
+  --c-bg:         #000000;
+  --c-surface:    #261a0a;
+  --c-border:     #412121;
+  --c-text:       #ffffff;
+  --c-muted:      #b89a6a;
+  --c-accent:     #e03030;
+  --c-accent-alt: #f5c518;
+  --c-success:    #4a8a4a;
+  --c-danger:     #c02020;
 
   --ff-display: 'Playfair Display', Georgia, serif;
   --ff-body:    'DM Sans', system-ui, sans-serif;
